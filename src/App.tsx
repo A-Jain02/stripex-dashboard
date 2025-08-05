@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "/Users/ayush/Downloads/stripex-ready/src/Sidebar.tsx";
+import Sidebar from "./Sidebar";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Line } from "react-chartjs-2";
