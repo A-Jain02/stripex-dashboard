@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "firebase": "^10.x.x",
     "@types/react": "^19.1.8",
     "chart.js": "^4.5.0",
     "framer-motion": "^12.23.11",
