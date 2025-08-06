@@ -1,4 +1,4 @@
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "./firebase";
 import { useNavigate, Link } from "react-router-dom";
 import { useState } from "react";
@@ -15,14 +15,12 @@ export default function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Check if user exists in localStorage
       const users = JSON.parse(localStorage.getItem("users") || "{}");
       if (!users[email]) {
         toast.error("User not found in localStorage.");
         return;
       }
 
-      // Store session info
       localStorage.setItem("currentUserEmail", email);
       localStorage.setItem("loggedIn", "true");
 
@@ -31,6 +29,19 @@ export default function Login() {
     } catch (error: any) {
       toast.error("Invalid credentials or user not found.");
       console.error(error);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const inputEmail = prompt("Enter your email to reset password:");
+    if (!inputEmail) return;
+
+    try {
+      await sendPasswordResetEmail(auth, inputEmail);
+      toast.success("Password reset email sent!");
+    } catch (error: any) {
+      console.error(error);
+      toast.error("Failed to send reset email.");
     }
   };
 
@@ -52,9 +63,20 @@ export default function Login() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-4 p-2 rounded border dark:bg-gray-700 dark:text-white"
+          className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
           required
         />
+
+        <div className="text-right mt-2 mb-4">
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            className="text-sm text-indigo-600 hover:underline"
+          >
+            Forgot Password?
+          </button>
+        </div>
+
         <button
           type="submit"
           className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 transition"
