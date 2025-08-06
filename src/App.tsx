@@ -4,18 +4,6 @@ import Sidebar from "./Sidebar";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Line } from "react-chartjs-2";
-import { db, auth } from "./firebase";
-import {
-  collection,
-  addDoc,
-  query,
-  where,
-  onSnapshot,
-  updateDoc,
-  deleteDoc,
-  doc,
-  Timestamp,
-} from "firebase/firestore";
 import {
   Chart as ChartJS,
   LineElement,
@@ -26,6 +14,15 @@ import {
   Legend,
 } from "chart.js";
 import { Search, Trash2, CheckCircle } from "lucide-react";
+import { auth, db } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+} from "firebase/firestore";
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
@@ -39,15 +36,14 @@ type Transaction = {
 
 export default function App() {
   const navigate = useNavigate();
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("Success");
-
-  const user = auth.currentUser;
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("theme") === "dark");
 
   useEffect(() => {
     const html = document.documentElement;
@@ -56,23 +52,32 @@ export default function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    if (!user) {
-      toast.error("Please log in first.");
-      navigate("/");
-      return;
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user || !user.email) {
+        toast.error("Please log in first.");
+        navigate("/");
+        return;
+      }
 
-    const q = query(collection(db, "transactions"), where("email", "==", user.email));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const txns: Transaction[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Transaction[];
-      setTransactions(txns);
+      setUserEmail(user.email);
+
+      try {
+        const userRef = doc(db, "users", user.email);
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setTransactions(data.transactions || []);
+        } else {
+          setTransactions([]);
+        }
+      } catch (error) {
+        console.error("Error fetching transactions:", error);
+        toast.error("Failed to fetch data.");
+      }
     });
 
     return () => unsubscribe();
-  }, [user, navigate]);
+  }, [navigate]);
 
   const filteredTxns = transactions
     .filter((txn) => txn.id.toLowerCase().includes(search.toLowerCase()))
@@ -110,47 +115,77 @@ export default function App() {
   };
 
   const handleAddTransaction = async () => {
-    if (!amount || isNaN(+amount) || !description) {
-      toast.error("Please enter valid details");
+    if (!amount || isNaN(+amount) || !description || !userEmail) {
+      toast.error("Invalid input");
       return;
     }
+
+    const newTxn = {
+      id: `txn_${Date.now()}`,
+      amount: parseFloat(amount),
+      status,
+      date: new Date().toISOString().split("T")[0],
+      description,
+    };
+
+    const userRef = doc(db, "users", userEmail);
     try {
-      await addDoc(collection(db, "transactions"), {
-        email: user?.email,
-        amount: parseFloat(amount),
-        status,
-        date: new Date().toISOString().split("T")[0],
-        description,
-        createdAt: Timestamp.now(),
+      await updateDoc(userRef, {
+        transactions: arrayUnion(newTxn),
       });
+
+      setTransactions((prev) => [...prev, newTxn]);
       toast.success("Transaction added");
       setAmount("");
       setDescription("");
       setStatus("Success");
     } catch (err) {
-      console.error(err);
+      console.error("Error adding transaction:", err);
       toast.error("Failed to add transaction");
     }
   };
 
   const handleDelete = async (id: string) => {
+    if (!userEmail) return;
+
+    const txnToRemove = transactions.find((t) => t.id === id);
+    if (!txnToRemove) return;
+
     try {
-      await deleteDoc(doc(db, "transactions", id));
+      const userRef = doc(db, "users", userEmail);
+      await updateDoc(userRef, {
+        transactions: arrayRemove(txnToRemove),
+      });
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
       toast.success("Transaction deleted");
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to delete transaction");
+      console.error("Error deleting transaction:", err);
+      toast.error("Failed to delete");
     }
   };
 
   const handleUpdateStatus = async (id: string) => {
+    const txnToUpdate = transactions.find((t) => t.id === id);
+    if (!txnToUpdate || !userEmail) return;
+
+    const updatedTxn = { ...txnToUpdate, status: "Success" };
+
     try {
-      const txnRef = doc(db, "transactions", id);
-      await updateDoc(txnRef, { status: "Success" });
+      const userRef = doc(db, "users", userEmail);
+      await updateDoc(userRef, {
+        transactions: arrayRemove(txnToUpdate),
+      });
+      await updateDoc(userRef, {
+        transactions: arrayUnion(updatedTxn),
+      });
+
+      setTransactions((prev) =>
+        prev.map((txn) => (txn.id === id ? updatedTxn : txn))
+      );
       toast.success("Status updated");
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to update status");
+      console.error("Error updating transaction:", err);
+      toast.error("Failed to update");
     }
   };
 
