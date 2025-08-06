@@ -35,8 +35,10 @@ export default function Sidebar() {
             {link.icon}
             <span>{link.name}</span>
           </div>
+        ))}
+      </nav>
 
-          <div className="mt-auto">
+       <div className="mt-auto">
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 w-full"
@@ -44,8 +46,6 @@ export default function Sidebar() {
             <LogOut size={18} /> Logout
           </button>
         </div>
-        ))}
-      </nav>
     </aside>
   );
 }
