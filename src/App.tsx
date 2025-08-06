@@ -1,5 +1,4 @@
 // src/pages/App.tsx
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
@@ -16,7 +15,18 @@ import {
   Legend,
 } from "chart.js";
 import { Search, Trash2, CheckCircle } from "lucide-react";
-
+import {
+  collection,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
+import { firestore, auth } from "../firebase";
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
@@ -38,32 +48,31 @@ export default function App() {
   const [amount, setAmount] = useState("");
   const [status, setStatus] = useState("Success");
 
-  const email = localStorage.getItem("currentUserEmail");
+  const user = auth.currentUser;
 
   useEffect(() => {
+    if (!user?.email) {
+      toast.error("Please log in first.");
+      navigate("/");
+      return;
+    }
+
     const html = document.documentElement;
     html.classList.toggle("dark", darkMode);
     localStorage.setItem("theme", darkMode ? "dark" : "light");
 
-    const checkAuthAndLoad = () => {
-      const currentEmail = localStorage.getItem("currentUserEmail");
-      const users = JSON.parse(localStorage.getItem("users") || "{}");
-  
-      if (!currentEmail || !users[currentEmail]) {
-        toast.error("Please log in first.");
-        navigate("/");
-        return;
-      }
-  
-      const userTxns = users[currentEmail].transactions || [];
-      setTransactions(userTxns);
-    };
-  
-    // Short delay allows localStorage to update after Google login
-    const timer = setTimeout(checkAuthAndLoad, 100);
-  
-      return () => clearTimeout(timer);
-  }, [darkMode, navigate]);
+    const q = query(collection(firestore, "transactions"), where("email", "==", user.email));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Transaction[];
+      setTransactions(data);
+    });
+
+    return () => unsubscribe();
+  }, [darkMode, navigate, user]);
 
   const filteredTxns = transactions
     .filter((txn) => txn.id.toLowerCase().includes(search.toLowerCase()))
@@ -100,69 +109,54 @@ export default function App() {
     },
   };
 
-  const handleAddTransaction = () => {
+  const handleAddTransaction = async () => {
     if (!amount || isNaN(+amount) || !description) {
       toast.error("Please enter valid details");
       return;
     }
-    if (!email) {
-      toast.error("User email not found.");
-      return;
-    }
-    // Inside your component:
+    if (!user?.email) return;
+
     const newTxn = {
-      id: `txn_₹{Date.now()}`,
       amount: parseFloat(amount),
       status,
       date: new Date().toISOString().split("T")[0],
       description,
+      email: user.email,
     };
 
-    const users = JSON.parse(localStorage.getItem("users") || "{}");
-    if (!email) {
-      toast.error("User email not found.");
-      return;
+    try {
+      await addDoc(collection(firestore, "transactions"), newTxn);
+      toast.success("Transaction added");
+      setAmount("");
+      setDescription("");
+      setStatus("Success");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add transaction");
     }
-    const updatedTxns = [...(users[email]?.transactions || []), newTxn];
-
-    users[email].transactions = updatedTxns;
-    localStorage.setItem("users", JSON.stringify(users));
-    setTransactions(updatedTxns);
-
-    toast.success("Transaction added");
-    setAmount("");
-    setDescription("");
-    setStatus("Success");
   };
 
-  function handleDelete(id: string): void {
-    if (!email) {
-      toast.error("User email not found.");
-      return;
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDoc(doc(firestore, "transactions", id));
+      toast.success("Transaction deleted");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete");
     }
-    const users = JSON.parse(localStorage.getItem("users") || "{}");
-    const updatedTxns = transactions.filter((txn) => txn.id !== id);
-    users[email].transactions = updatedTxns;
-    localStorage.setItem("users", JSON.stringify(users));
-    setTransactions(updatedTxns);
-    toast.success("Transaction deleted");
-  }
+  };
 
-  function handleUpdateStatus(id: string): void {
-    if (!email) {
-      toast.error("User email not found.");
-      return;
+  const handleUpdateStatus = async (id: string) => {
+    try {
+      const txnRef = doc(firestore, "transactions", id);
+      await updateDoc(txnRef, { status: "Success" });
+      toast.success("Status updated");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update");
     }
-    const users = JSON.parse(localStorage.getItem("users") || "{}");
-    const updatedTxns = transactions.map((txn) =>
-      txn.id === id ? { ...txn, status: "Success" } : txn
-    );
-    users[email].transactions = updatedTxns;
-    localStorage.setItem("users", JSON.stringify(users));
-    setTransactions(updatedTxns);
-    toast.success("Status updated to Success");
-  }
-  
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Sidebar />
@@ -280,6 +274,7 @@ export default function App() {
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3">Date</th>
                   <th className="px-6 py-3">Description</th>
+                  <th className="px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -328,5 +323,6 @@ export default function App() {
     </div>
   );
 }
+
 
 
