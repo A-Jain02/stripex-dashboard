@@ -6,7 +6,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import toast from "react-hot-toast";
 
 import { auth } from "./firebase";
-import { getUserProfile } from "./firestoreUtils";
+import { getUserData } from "./firestoreUtils";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -21,7 +21,7 @@ export default function Login() {
       const user = userCredential.user;
 
       // 🔄 Fetch user profile from Firestore
-      const userProfile = await getUserProfile(email);
+      const userProfile = await getUserData(email);
       if (!userProfile) {
         toast.error("User profile not found.");
         return;
