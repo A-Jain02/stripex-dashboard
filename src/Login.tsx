@@ -28,22 +28,29 @@ export default function Login() {
     }
   };
 
-  // OPTIONAL: Google Sign-in button
   const handleGoogleLogin = async () => {
     try {
-      const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-
+  
+      const userInfo = {
+        email: user.email,
+        name: user.displayName,
+      };
+  
+      // Save user session
       localStorage.setItem("loggedIn", "true");
-      localStorage.setItem("user", JSON.stringify({ email: user.email, name: user.displayName }));
+      localStorage.setItem("user", JSON.stringify(userInfo));
+      localStorage.setItem("users", JSON.stringify({ [user.email]: userInfo }));
+  
       toast.success("Logged in with Google!");
-      navigate("/dashboard");
+      navigate("/dashboard"); // Redirect after saving session
     } catch (error) {
       toast.error("Google login failed.");
       console.error(error);
     }
   };
+
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gray-50 dark:bg-gray-900">
