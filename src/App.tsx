@@ -26,7 +26,7 @@ import {
   where,
   onSnapshot,
 } from "firebase/firestore";
-import { firestore, auth } from "../firebase";
+import { firestore, auth } from "./firebase";
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
