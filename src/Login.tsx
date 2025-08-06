@@ -1,8 +1,12 @@
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "./firebase";
-import { useNavigate, Link } from "react-router-dom";
+// src/pages/Login.tsx
+
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import toast from "react-hot-toast";
+
+import { auth } from "./firebase";
+import { getUserProfile } from "./firestoreUtils";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -11,71 +15,56 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      const users = JSON.parse(localStorage.getItem("users") || "{}");
-      if (!users[email]) {
-        toast.error("User not found in localStorage.");
+      // 🔄 Fetch user profile from Firestore
+      const userProfile = await getUserProfile(email);
+      if (!userProfile) {
+        toast.error("User profile not found.");
         return;
       }
 
-      localStorage.setItem("currentUserEmail", email);
+      // ✅ Set session
       localStorage.setItem("loggedIn", "true");
+      localStorage.setItem("currentUserEmail", email);
+      localStorage.setItem("user", JSON.stringify(userProfile));
 
       toast.success("Login successful!");
       navigate("/dashboard");
     } catch (error: any) {
-      toast.error("Invalid credentials or user not found.");
-      console.error(error);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    const inputEmail = prompt("Enter your email to reset password:");
-    if (!inputEmail) return;
-
-    try {
-      await sendPasswordResetEmail(auth, inputEmail);
-      toast.success("Password reset email sent!");
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Failed to send reset email.");
+      console.error("Login error:", error);
+      toast.error("Invalid credentials. Please try again.");
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gray-50 dark:bg-gray-900">
-      <form onSubmit={handleLogin} className="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded shadow">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 dark:bg-gray-900">
+      <form
+        onSubmit={handleLogin}
+        className="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded shadow"
+      >
         <h1 className="text-2xl font-bold mb-4 text-center text-indigo-600">Log In</h1>
 
         <input
           type="email"
           placeholder="Email"
+          className="w-full mb-3 p-2 rounded border dark:bg-gray-700 dark:text-white"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full mb-3 p-2 rounded border dark:bg-gray-700 dark:text-white"
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
           required
         />
 
-        <div className="text-right mt-2 mb-4">
-          <button
-            type="button"
-            onClick={handleForgotPassword}
-            className="text-sm text-indigo-600 hover:underline"
-          >
-            Forgot Password?
-          </button>
-        </div>
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full mb-3 p-2 rounded border dark:bg-gray-700 dark:text-white"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
 
         <button
           type="submit"
@@ -84,11 +73,14 @@ export default function Login() {
           Log In
         </button>
 
-        <p className="mt-4 text-center text-gray-600 dark:text-gray-300">
-          New here?{" "}
-          <Link to="/signup" className="text-indigo-600 hover:underline">
-            Create an Account
-          </Link>
+        <p className="mt-4 text-sm text-center text-gray-600 dark:text-gray-400">
+          Don’t have an account?{" "}
+          <span
+            className="text-indigo-600 hover:underline cursor-pointer"
+            onClick={() => navigate("/signup")}
+          >
+            Sign Up
+          </span>
         </p>
       </form>
     </div>
