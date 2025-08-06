@@ -1,4 +1,3 @@
-// src/pages/Signup.tsx
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "./firebase";
 import { useNavigate } from "react-router-dom";
@@ -8,41 +7,46 @@ import toast from "react-hot-toast";
 export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const navigate = useNavigate();
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
+      // Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      const userInfo = {
-        email: user.email,
-        name: user.displayName || "",
+      // Get existing users from localStorage
+      const users = JSON.parse(localStorage.getItem("users") || "{}");
+
+      if (users[email]) {
+        toast.error("User already exists.");
+        return;
+      }
+
+      // Add new user with initial empty transaction list
+      users[email] = {
+        email,
+        name,
         transactions: [],
         profile: {
-          name: "",
+          name,
           picture: "",
         },
       };
 
-      // Save to localStorage
-      const users = JSON.parse(localStorage.getItem("users") || "{}");
-      if (!users[email]) {
-        users[email] = userInfo;
-        localStorage.setItem("users", JSON.stringify(users));
-      }
-
-      // Store session
+      // Store new user and session
+      localStorage.setItem("users", JSON.stringify(users));
       localStorage.setItem("currentUserEmail", email);
       localStorage.setItem("loggedIn", "true");
 
       toast.success("Signup successful!");
       navigate("/dashboard");
     } catch (error: any) {
-      toast.error("Signup failed. Email may already be in use.");
       console.error(error);
+      toast.error("Signup failed. Try a different email or stronger password.");
     }
   };
 
@@ -55,8 +59,16 @@ export default function Signup() {
         <h1 className="text-2xl font-bold mb-4 text-center text-indigo-600">Sign Up</h1>
 
         <input
+          type="text"
+          placeholder="Full Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full mb-3 p-2 rounded border dark:bg-gray-700 dark:text-white"
+          required
+        />
+        <input
           type="email"
-          placeholder="Email"
+          placeholder="Email Address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full mb-3 p-2 rounded border dark:bg-gray-700 dark:text-white"
@@ -64,17 +76,17 @@ export default function Signup() {
         />
         <input
           type="password"
-          placeholder="Password"
+          placeholder="Create Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full mb-3 p-2 rounded border dark:bg-gray-700 dark:text-white"
+          className="w-full mb-4 p-2 rounded border dark:bg-gray-700 dark:text-white"
           required
         />
         <button
           type="submit"
           className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 transition"
         >
-          Sign Up
+          Create Account
         </button>
       </form>
     </div>
