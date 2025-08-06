@@ -1,10 +1,21 @@
-// src/pages/App.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import { Line } from "react-chartjs-2";
+import { db, auth } from "./firebase";
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  onSnapshot,
+  updateDoc,
+  deleteDoc,
+  doc,
+  Timestamp,
+} from "firebase/firestore";
 import {
   Chart as ChartJS,
   LineElement,
@@ -15,18 +26,6 @@ import {
   Legend,
 } from "chart.js";
 import { Search, Trash2, CheckCircle } from "lucide-react";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  doc,
-  query,
-  where,
-  onSnapshot,
-} from "firebase/firestore";
-import { db, auth } from "./firebase";
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
 
@@ -51,28 +50,29 @@ export default function App() {
   const user = auth.currentUser;
 
   useEffect(() => {
-    if (!user?.email) {
+    const html = document.documentElement;
+    html.classList.toggle("dark", darkMode);
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
+
+  useEffect(() => {
+    if (!user) {
       toast.error("Please log in first.");
       navigate("/");
       return;
     }
 
-    const html = document.documentElement;
-    html.classList.toggle("dark", darkMode);
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-
-    const q = query(collection(firestore, "transactions"), where("email", "==", user.email));
-
+    const q = query(collection(db, "transactions"), where("email", "==", user.email));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
+      const txns: Transaction[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Transaction[];
-      setTransactions(data);
+      setTransactions(txns);
     });
 
     return () => unsubscribe();
-  }, [darkMode, navigate, user]);
+  }, [user, navigate]);
 
   const filteredTxns = transactions
     .filter((txn) => txn.id.toLowerCase().includes(search.toLowerCase()))
@@ -114,18 +114,15 @@ export default function App() {
       toast.error("Please enter valid details");
       return;
     }
-    if (!user?.email) return;
-
-    const newTxn = {
-      amount: parseFloat(amount),
-      status,
-      date: new Date().toISOString().split("T")[0],
-      description,
-      email: user.email,
-    };
-
     try {
-      await addDoc(collection(firestore, "transactions"), newTxn);
+      await addDoc(collection(db, "transactions"), {
+        email: user?.email,
+        amount: parseFloat(amount),
+        status,
+        date: new Date().toISOString().split("T")[0],
+        description,
+        createdAt: Timestamp.now(),
+      });
       toast.success("Transaction added");
       setAmount("");
       setDescription("");
@@ -138,29 +135,28 @@ export default function App() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(firestore, "transactions", id));
+      await deleteDoc(doc(db, "transactions", id));
       toast.success("Transaction deleted");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to delete");
+      toast.error("Failed to delete transaction");
     }
   };
 
   const handleUpdateStatus = async (id: string) => {
     try {
-      const txnRef = doc(firestore, "transactions", id);
+      const txnRef = doc(db, "transactions", id);
       await updateDoc(txnRef, { status: "Success" });
       toast.success("Status updated");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to update");
+      toast.error("Failed to update status");
     }
   };
 
   return (
     <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Sidebar />
-
       <main className="flex-1 p-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-indigo-600">Dashboard</h1>
@@ -178,23 +174,17 @@ export default function App() {
 
         {/* Summary Cards */}
         <motion.div className="grid gap-6 md:grid-cols-3 mb-8">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow hover:shadow-xl transition">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
             <h2 className="text-xl font-semibold text-indigo-600 mb-2">Net Balance</h2>
-            <p className="text-2xl font-bold text-green-500 dark:text-green-400">
-              ₹{netBalance.toFixed(2)}
-            </p>
+            <p className="text-2xl font-bold text-green-500 dark:text-green-400">₹{netBalance.toFixed(2)}</p>
           </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow hover:shadow-xl transition">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
             <h2 className="text-xl font-semibold text-indigo-600 mb-2">Current Balance</h2>
-            <p className="text-2xl font-bold text-yellow-500 dark:text-yellow-300">
-              ₹{currentBalance.toFixed(2)}
-            </p>
+            <p className="text-2xl font-bold text-yellow-500 dark:text-yellow-300">₹{currentBalance.toFixed(2)}</p>
           </div>
-
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow hover:shadow-xl transition">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
             <h2 className="text-xl font-semibold text-indigo-600 mb-2">Transactions</h2>
-            <p className="text-gray-700 dark:text-gray-300">{transactions.length} total</p>
+            <p>{transactions.length} total</p>
           </div>
         </motion.div>
 
@@ -323,6 +313,5 @@ export default function App() {
     </div>
   );
 }
-
 
 
