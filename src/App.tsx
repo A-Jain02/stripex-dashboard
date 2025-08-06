@@ -45,24 +45,24 @@ export default function App() {
     html.classList.toggle("dark", darkMode);
     localStorage.setItem("theme", darkMode ? "dark" : "light");
 
-  const checkAuthAndLoad = () => {
-    const currentEmail = localStorage.getItem("currentUserEmail");
-    const users = JSON.parse(localStorage.getItem("users") || "{}");
-
-    if (!currentEmail || !users[currentEmail]) {
-      toast.error("Please log in first.");
-      navigate("/");
-      return;
-    }
-
-    const userTxns = users[currentEmail].transactions || [];
-    setTransactions(userTxns);
-  };
-
-  // Short delay allows localStorage to update after Google login
-  const timer = setTimeout(checkAuthAndLoad, 100);
-
-    return () => clearTimeout(timer);
+    const checkAuthAndLoad = () => {
+      const currentEmail = localStorage.getItem("currentUserEmail");
+      const users = JSON.parse(localStorage.getItem("users") || "{}");
+  
+      if (!currentEmail || !users[currentEmail]) {
+        toast.error("Please log in first.");
+        navigate("/");
+        return;
+      }
+  
+      const userTxns = users[currentEmail].transactions || [];
+      setTransactions(userTxns);
+    };
+  
+    // Short delay allows localStorage to update after Google login
+    const timer = setTimeout(checkAuthAndLoad, 100);
+  
+      return () => clearTimeout(timer);
   }, [darkMode, navigate]);
 
   const filteredTxns = transactions
